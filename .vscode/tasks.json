@@ -1,0 +1,37 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "start-stutil",
+      "type": "shell",
+      "command": "st-util",
+      "isBackground": true,
+      "options": {
+        "cwd": "${workspaceFolder}"
+      }
+    },
+    {
+      "label": "build_debug",
+      "type": "shell",
+      "command": "make bin",
+      "options": {
+        "cwd": "${workspaceFolder}/app"
+      },
+      "problemMatcher": "$gcc"
+    },
+    {
+      "label": "build_bootloader",
+      "type": "shell",
+      "command": "make bin",
+      "options": {
+        "cwd": "${workspaceFolder}/bootloader"
+      },
+      "problemMatcher": "$gcc"
+    },
+    {
+      "label": "build-and-start-stutil",
+      "dependsOn": ["build_debug", "start-stutil"],
+      "dependsOrder": "sequence"
+    }
+  ]
+}

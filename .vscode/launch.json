@@ -1,0 +1,65 @@
+{
+  "configurations": [
+ 
+    {
+      "name": "ST-Link: Debug Application",
+      "type": "cortex-debug",
+      "request": "launch",
+
+      "cwd": "${workspaceFolder}/app",
+      "executable": "./firmware.elf",
+
+      "servertype": "stutil",
+      "interface": "swd",
+      "device": "STM32F103RB",
+
+      "gdbPath": "gdb-multiarch",
+
+      "preLaunchTask": "build_debug",
+
+      "runToEntryPoint": "main",
+      "preRestartCommands": [
+        "monitor reset halt"
+      ],
+      "postRestartCommands": [
+        "load",
+        "monitor reset halt"
+      ],
+      "showDevDebugOutput": "both"
+    },
+    {
+      "name": "ST-Link: Debug Bootloader",
+      "cwd": "${workspaceFolder}/bootloader",
+      "executable": "./bootloader.elf",
+      "servertype": "stutil",
+      "request": "launch",
+      "type": "cortex-debug",
+      "device": "STM32F103RB",
+      "runToEntryPoint": "main",
+      "interface": "swd",
+      "preLaunchTask": "build_bootloader"
+    },
+    {
+      "name": "ST-Link: Attach to Application",
+      "cwd": "${workspaceFolder}/app",
+      "executable": "./firmware.elf",
+      "servertype": "stutil",
+      "request": "attach",
+      "type": "cortex-debug",
+      "device": "STM32F103RB",
+      "runToEntryPoint": "main",
+      "interface": "swd"
+    },
+    {
+      "name": "ST-Link: Attach to Bootloader",
+      "cwd": "${workspaceFolder}/bootloader",
+      "executable": "./bootloader.elf",
+      "servertype": "stutil",
+      "request": "attach",
+      "type": "cortex-debug",
+      "device": "STM32F103RB",
+      "runToEntryPoint": "main",
+      "interface": "swd"
+    }
+  ]
+}

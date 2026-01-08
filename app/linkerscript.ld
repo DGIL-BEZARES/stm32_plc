@@ -35,7 +35,8 @@ ENTRY(reset_handler)
 SECTIONS
 {
 	.text : {
-		*(.vectors)	/* Vector table */
+		 *(.vectors)	/* Vector table */
+		/*KEEP(*(.isr_vector))  /* Vector table */
 		*(.text*)	/* Program code */
 		. = ALIGN(4);
 		*(.rodata*)	/* Read-only data */

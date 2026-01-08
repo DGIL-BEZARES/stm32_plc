@@ -15,9 +15,9 @@ BINARY = firmware
 # Basic Device Setup
 
 LIBNAME			= opencm3_stm32f1
-DEFS				+= -DSTM32F4
-FP_FLAGS		?= -mfloat-abi=hard -mfpu=fpv4-sp-d16
-ARCH_FLAGS	= -mthumb -mcpu=cortex-m4 $(FP_FLAGS)
+DEFS				+= -DSTM32F1
+FP_FLAGS		?= -mfloat-abi=soft -mfpu=fpv4-sp-d16
+ARCH_FLAGS	= -mthumb -mcpu=cortex-m3 $(FP_FLAGS)
 
 ###############################################################################
 # Linkerscript
@@ -46,7 +46,7 @@ OBJCOPY		:= $(PREFIX)objcopy
 OBJDUMP		:= $(PREFIX)objdump
 GDB		:= $(PREFIX)gdb
 STFLASH		= $(shell which st-flash)
-OPT		:= -Os
+OPT		:= -Og
 DEBUG		:= -ggdb3
 CSTD		?= -std=c99
 
