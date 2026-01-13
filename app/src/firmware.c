@@ -1,8 +1,17 @@
 
 #include <libopencm3/stm32/gpio.h>
 #include <libopencm3/stm32/rcc.h>
-#include "core/system.h"
+#include <libopencm3/cm3/scb.h>
+
+#include "shared/system.h"
 #include "core/timer.h"
+
+#define BOOTLOADER_SIZE (0x4000U)
+
+static void vector_setup(void)
+{
+  SCB_VTOR = BOOTLOADER_SIZE;
+}
 
 static void gpio_setup(void)
 {
@@ -12,13 +21,16 @@ static void gpio_setup(void)
 
 int main(void)
 {
+  vector_setup();
   system_setup();
   gpio_setup();
+  gpio_set(GPIOA, GPIO5);
   timer_setup();
 
   timer_pwm_set_duty_cycle(0);
 
   uint64_t start_time = system_get_ticks();
+  uint8_t i = 0;
 
   while (1)
   {
@@ -28,20 +40,13 @@ int main(void)
     //   start_time = system_get_ticks();
     // }
 
-    for (float i = 0; i <= 100; i++)
+    if (system_get_ticks() - start_time >= 10)
     {
-      timer_pwm_set_duty_cycle(i);
-      while (system_get_ticks() - start_time < 10)
+      if (i >= 100)
       {
+        i = 0;
       }
-      start_time = system_get_ticks();
-    }
-    for (float i = 100; i >= 0; i--)
-    {
-      timer_pwm_set_duty_cycle(i);
-      while (system_get_ticks() - start_time < 10)
-      {
-      }
+      timer_pwm_set_duty_cycle(i++);
       start_time = system_get_ticks();
     }
   }

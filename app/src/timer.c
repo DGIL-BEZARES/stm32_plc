@@ -16,7 +16,7 @@ void timer_setup(void)
     timer_set_oc_mode(TIM2, TIM_OC1, TIM_OCM_FROZEN);
 
     // Enable timer OC output
-    // timer_enable_oc_output(TIM2, TIM_OC1);
+    timer_enable_oc_output(TIM2, TIM_OC1);
 
     timer_set_prescaler(TIM2, PSC - 1);
     timer_set_period(TIM2, ARR_VAL - 1);
@@ -24,23 +24,22 @@ void timer_setup(void)
     nvic_enable_irq(NVIC_TIM2_IRQ);
     nvic_set_priority(NVIC_TIM2_IRQ, 1);
 
-    timer_enable_irq(TIM2, TIM_DIER_UIE | TIM_DIER_CC1IE);
+    timer_enable_irq(TIM2, TIM_DIER_CC1IE | TIM_DIER_UIE);
 
     timer_enable_counter(TIM2);
 }
 
 void tim2_isr(void)
 {
-    if (TIM2_SR & TIM_SR_CC1IF)
+    if (timer_get_flag(TIM2, TIM_SR_UIF))
     {
-        TIM2_SR &= ~TIM_SR_CC1IF;
         gpio_set(GPIOA, GPIO5);
-        /* code */
+        timer_clear_flag(TIM2, TIM_SR_UIF);
     }
-    else
+    if (timer_get_flag(TIM2, TIM_SR_CC1IF))
     {
-        TIM2_SR &= ~TIM_SR_UIF;
         gpio_clear(GPIOA, GPIO5);
+        timer_clear_flag(TIM2, TIM_SR_CC1IF);
     }
 }
 
