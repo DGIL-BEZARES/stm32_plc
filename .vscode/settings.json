@@ -1,3 +1,5 @@
 {
-    "cortex-debug.gdbPath": "/usr/bin/gdb-multiarch"
+    "cortex-debug.gdbPath": "/usr/bin/gdb-multiarch",
+    "makefile.makeDirectory": "${workspaceFolder}/app",
+    "makefile.makePath": "/usr/bin/make"
 }

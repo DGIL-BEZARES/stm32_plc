@@ -1,22 +1,16 @@
 {
   "configurations": [
- 
     {
       "name": "ST-Link: Debug Application",
       "type": "cortex-debug",
       "request": "launch",
-
       "cwd": "${workspaceFolder}/app",
       "executable": "./firmware.elf",
-
       "servertype": "stutil",
       "interface": "swd",
       "device": "STM32F103RB",
-
       "gdbPath": "gdb-multiarch",
-
       "preLaunchTask": "build_debug",
-
       "runToEntryPoint": "main",
       "preRestartCommands": [
         "monitor reset halt"
@@ -35,9 +29,18 @@
       "request": "launch",
       "type": "cortex-debug",
       "device": "STM32F103RB",
+      "gdbPath": "gdb-multiarch",
       "runToEntryPoint": "main",
       "interface": "swd",
-      "preLaunchTask": "build_bootloader"
+      "preLaunchTask": "build_bootloader",
+      "preRestartCommands": [
+        "monitor reset halt"
+      ],
+      "postRestartCommands": [
+        "load",
+        "monitor reset halt"
+      ],
+      "showDevDebugOutput": "both"
     },
     {
       "name": "ST-Link: Attach to Application",

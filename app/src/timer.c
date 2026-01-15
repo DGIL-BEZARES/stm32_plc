@@ -1,4 +1,4 @@
-#include "core/timer.h"
+#include "timer.h"
 #include <libopencm3/stm32/timer.h>
 #include <libopencm3/stm32/rcc.h>
 #include <libopencm3/cm3/nvic.h>
@@ -6,6 +6,9 @@
 
 #define PSC (48)
 #define ARR_VAL (1000)
+
+#define LED_PORT (GPIOA)
+#define LED_PIN (GPIO5)
 
 void timer_setup(void)
 {
@@ -33,12 +36,12 @@ void tim2_isr(void)
 {
     if (timer_get_flag(TIM2, TIM_SR_UIF))
     {
-        gpio_set(GPIOA, GPIO5);
+        gpio_set(LED_PORT, LED_PIN);
         timer_clear_flag(TIM2, TIM_SR_UIF);
     }
     if (timer_get_flag(TIM2, TIM_SR_CC1IF))
     {
-        gpio_clear(GPIOA, GPIO5);
+        gpio_clear(LED_PORT, LED_PIN);
         timer_clear_flag(TIM2, TIM_SR_CC1IF);
     }
 }
