@@ -1,5 +1,6 @@
 {
     "cortex-debug.gdbPath": "/usr/bin/gdb-multiarch",
     "makefile.makeDirectory": "${workspaceFolder}/app",
-    "makefile.makePath": "/usr/bin/make"
+    "makefile.makePath": "/usr/bin/make",
+    "cortex-debug.variableUseNaturalFormat": false
 }
