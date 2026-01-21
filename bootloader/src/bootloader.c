@@ -1,5 +1,6 @@
 #include <libopencm3/stm32/gpio.h>
 #include <libopencm3/stm32/memorymap.h>
+#include <libopencm3/cm3/vector.h>
 #include <libopencm3/stm32/rcc.h>
 
 #include "bl-flash.h"
@@ -59,14 +60,8 @@ static void gpio_teardown(void) {
 }
 
 static void jump_to_app(void) {
-  typedef void (*pFunction)(void);
-
-  uint32_t *reset_vector_entry = (uint32_t *)(APP_START_ADDR + 4U);
-  uint32_t *reset_vector = (uint32_t *)(*reset_vector_entry);
-
-  pFunction jump_fn = (pFunction)reset_vector;
-
-  jump_fn();
+  vector_table_t* main_vector_table = (vector_table_t*)APP_START_ADDR;
+  main_vector_table->reset();
 }
 
 static void bootloader_failure(void) {
