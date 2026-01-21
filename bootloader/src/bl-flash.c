@@ -23,8 +23,8 @@ void bl_flash_write(const uint32_t addr, const uint8_t *data,
 
   uint32_t num_elements = length / sizeof(uint32_t);
 
-  for (uint32_t iter = 0; iter < num_elements; iter += 4) {
-    flash_program_word(addr + iter, *((uint32_t *)(data + iter)));
+  for (uint32_t iter = 0; iter < num_elements; iter += 1) {
+    flash_program_word(addr + (iter * 4), *((uint32_t *)(data + (iter * 4))));
   }
 
   flash_lock();

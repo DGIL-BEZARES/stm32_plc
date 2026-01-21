@@ -49,7 +49,7 @@ OBJCOPY		:= $(PREFIX)objcopy
 OBJDUMP		:= $(PREFIX)objdump
 GDB		:= $(PREFIX)gdb
 STFLASH		= $(shell which st-flash)
-OPT		:= -Og
+OPT		:= -Os
 DEBUG		:= -ggdb3
 CSTD		?= -std=c99
 

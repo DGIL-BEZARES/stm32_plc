@@ -39,7 +39,9 @@ static uint32_t bytes_written = 0;
 static uint8_t sync_seq[4] = {0};
 
 static simple_timer_t timer;
-static comms_packet_t packet;
+static comms_packet_t temp_packet;
+static volatile uint32_t addr[128] = {0};
+static uint8_t idx = 0;
 
 static void gpio_setup(void) {
   rcc_periph_clock_enable(RCC_GPIOA);
@@ -68,8 +70,8 @@ static void jump_to_app(void) {
 }
 
 static void bootloader_failure(void) {
-  comms_create_single_byte_packet(&packet, BL_PACKET_NACK_DATA0);
-  comms_write(&packet);
+  comms_create_single_byte_packet(&temp_packet, BL_PACKET_NACK_DATA0);
+  comms_write(&temp_packet);
   state = BL_State_Done;
 }
 
@@ -81,6 +83,24 @@ static void check_for_timeout(void) {
 
 static bool is_device_id_packet(const comms_packet_t *packet) {
   if (packet->length != 2) {
+    return false;
+  }
+
+  if (packet->data[0] != BL_PACKET_DEV_ID_RES_DATA0) {
+    return false;
+  }
+
+  for (uint8_t i = 2; i < PACKET_DATA_LEN; i++) {
+    if (packet->data[i] != 0xff) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+static bool is_fw_length_packet(const comms_packet_t *packet) {
+  if (packet->length != 5) {
     return false;
   }
 
@@ -96,25 +116,6 @@ static bool is_device_id_packet(const comms_packet_t *packet) {
 
   return true;
 }
-
-static bool is_fw_length_packet(const comms_packet_t *packet) {
-  if (packet->length != 5) {
-    return false;
-  }
-
-  if (packet->data[0] != PACKET_DATA_LEN) {
-    return false;
-  }
-
-  for (uint8_t i = 2; i < PACKET_DATA_LEN; i++) {
-    if (packet->data[i] != 0xff) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
 int main(void) {
   system_setup();
   gpio_setup();
@@ -136,8 +137,8 @@ int main(void) {
         is_match = is_match && (sync_seq[3] == SYNC_SEQ3);
 
         if (is_match) {
-          comms_create_single_byte_packet(&packet, BL_PACKET_SYNC_OBS_DATA0);
-          comms_write(&packet);
+          comms_create_single_byte_packet(&temp_packet, BL_PACKET_SYNC_OBS_DATA0);
+          comms_write(&temp_packet);
           simple_timer_reset(&timer);
           state = BL_State_WaitForUpdateReq;
         } else {
@@ -146,24 +147,22 @@ int main(void) {
       } else {
         check_for_timeout();
       }
+      continue;
     }
-
-    continue;
 
     comms_update();
 
     switch (state) {
-    case BL_State_Sync: {
-
-    } break;
     case BL_State_WaitForUpdateReq: {
       if (comms_packets_available()) {
-        comms_read(&packet);
-        if (comms_is_single_byte_packet(&packet, BL_PACKET_FW_UP_REQ_DATA0)) {
+        comms_read(&temp_packet);
+
+        if (comms_is_single_byte_packet(&temp_packet, BL_PACKET_FW_UP_REQ_DATA0)) {
           simple_timer_reset(&timer);
-          comms_create_single_byte_packet(&packet, BL_PACKET_DEV_ID_RES_DATA0);
-          comms_write(&packet);
+          comms_create_single_byte_packet(&temp_packet, BL_PACKET_FW_UP_RES_DATA0);
+          comms_write(&temp_packet);
           state = BL_State_DeviceIdReq;
+
         } else {
           bootloader_failure();
         }
@@ -176,16 +175,16 @@ int main(void) {
 
     case BL_State_DeviceIdReq: {
       simple_timer_reset(&timer);
-      comms_create_single_byte_packet(&packet, BL_PACKET_DEV_ID_REQ_DATA0);
-      comms_write(&packet);
+      comms_create_single_byte_packet(&temp_packet, BL_PACKET_DEV_ID_REQ_DATA0);
+      comms_write(&temp_packet);
       state = BL_State_DeviceIdRes;
 
     } break;
     case BL_State_DeviceIdRes: {
       if (comms_packets_available()) {
-        comms_read(&packet);
+        comms_read(&temp_packet);
 
-        if (is_device_id_packet(&packet) && packet.data[1] == DEVICE_ID) {
+        if (is_device_id_packet(&temp_packet) && temp_packet.data[1] == DEVICE_ID) {
           simple_timer_reset(&timer);
           state = BL_State_FWLengthReq;
         } else {
@@ -198,19 +197,19 @@ int main(void) {
     } break;
     case BL_State_FWLengthReq: {
       simple_timer_reset(&timer);
-      comms_create_single_byte_packet(&packet, BL_PACKET_FW_LEN_REQ_DATA0);
-      comms_write(&packet);
+      comms_create_single_byte_packet(&temp_packet, BL_PACKET_FW_LEN_REQ_DATA0);
+      comms_write(&temp_packet);
       state = BL_State_FWLengthRes;
 
     } break;
     case BL_State_FWLengthRes: {
       if (comms_packets_available()) {
-        comms_read(&packet);
+        comms_read(&temp_packet);
 
-        fw_length = ((packet.data[1]) | (packet.data[2] << 8) |
-                     (packet.data[3] << 16) | (packet.data[4] << 24));
+        fw_length = ((temp_packet.data[1]) | (temp_packet.data[2] << 8) |
+                     (temp_packet.data[3] << 16) | (temp_packet.data[4] << 24));
 
-        if (is_fw_length_packet(&packet) && (fw_length <= MAX_FW_LENGTH)) {
+        if (is_fw_length_packet(&temp_packet) && (fw_length <= MAX_FW_LENGTH)) {
           simple_timer_reset(&timer);
           state = BL_State_EraseApp;
         } else {
@@ -224,8 +223,8 @@ int main(void) {
     case BL_State_EraseApp: {
       bl_flash_erase_main_application();
 
-      comms_create_single_byte_packet(&packet, BL_PACKET_RDY_DATA_DATA0);
-      comms_write(&packet);
+      comms_create_single_byte_packet(&temp_packet, BL_PACKET_RDY_DATA_DATA0);
+      comms_write(&temp_packet);
       simple_timer_reset(&timer);
 
       state = BL_State_ReceiveFW;
@@ -233,39 +232,38 @@ int main(void) {
     } break;
     case BL_State_ReceiveFW: {
       if (comms_packets_available()) {
-        comms_read(&packet);
+        comms_read(&temp_packet);
 
-        const uint8_t packet_length = (packet.length & 0x1f) + 1;
+        const uint8_t packet_length = (temp_packet.length & 0x1f) + 1;
 
-        bl_flash_write(APP_START_ADDR + bytes_written, packet.data,
+        addr[idx++] = APP_START_ADDR + bytes_written;
+
+        bl_flash_write(APP_START_ADDR + bytes_written, temp_packet.data,
                        packet_length);
         bytes_written += packet_length;
         simple_timer_reset(&timer);
 
         if (bytes_written >= fw_length) {
+          comms_create_single_byte_packet(&temp_packet, BL_PACKET_FW_UP_SCS_DATA0);
+          comms_write(&temp_packet);
           state = BL_State_Done;
         } else {
-          comms_create_single_byte_packet(&packet, BL_PACKET_RDY_DATA_DATA0);
-          comms_write(&packet);
+          comms_create_single_byte_packet(&temp_packet, BL_PACKET_RDY_DATA_DATA0);
+          comms_write(&temp_packet);
         }
 
       } else {
         check_for_timeout();
       }
-
-    } break;
-    case BL_State_Done: {
-      comms_create_single_byte_packet(&packet, BL_PACKET_FW_UP_SCS_DATA0);
-      comms_write(&packet);
-
     } break;
 
     default: {
-      state = BL_State_Done;
+      state = BL_State_Sync;
     } break;
     }
   }
 
+  system_delay(150);
   uart_teardown();
   gpio_teardown();
   system_teardown();

@@ -29,7 +29,7 @@ int main(void) {
   vector_setup();
   system_setup();
   gpio_setup();
-  uart_setup();
+  //uart_setup();
 
   gpio_set(LED_PORT, LED_PIN);
   timer_setup();
@@ -40,7 +40,7 @@ int main(void) {
   uint8_t i = 0;
 
   while (1) {
-    // if (system_get_ticks() - start_time >= 100)
+    // if (system_get_ticks() - start_time >= 1000)
     //{
     //   gpio_toggle(GPIOA, GPIO5);
     //   start_time = system_get_ticks();
@@ -53,11 +53,11 @@ int main(void) {
       timer_pwm_set_duty_cycle(i++);
       start_time = system_get_ticks();
     }
-
-    if (uart_data_available()) {
-      uint8_t data = uart_read_byte();
-      uart_write_byte(data + 1);
-    }
+//
+    //if (uart_data_available()) {
+    //  uint8_t data = uart_read_byte();
+    //  uart_write_byte(data + 1);
+    //}
     // Do useful work
   }
 

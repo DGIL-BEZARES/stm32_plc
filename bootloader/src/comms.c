@@ -46,9 +46,6 @@ void comms_create_single_byte_packet(comms_packet_t *packet, uint8_t byte) {
   memset(packet, 0xff, sizeof(comms_packet_t));
   packet->length = 1;
   packet->data[0] = byte;
-  for (uint8_t i = 1; i < PACKET_DATA_LEN; i++) {
-    packet->data[i] = 0xff;
-  }
   packet->crc = comms_compute_crc(packet);
 }
 
@@ -70,7 +67,7 @@ void comms_update(void) {
 
     case CommsState_CRC:
       temp_packet.crc = uart_read_byte();
-      uint8_t computed_crc = crc8_h2f_lut((uint8_t *)(&temp_packet),
+      volatile uint8_t computed_crc = crc8_h2f_lut((uint8_t *)(&temp_packet),
                                           PACKET_DATA_LEN + PACKET_SIZE_LEN);
       if (temp_packet.crc != computed_crc) {
         comms_write(&retx_packet);
@@ -78,13 +75,13 @@ void comms_update(void) {
         break;
       }
 
-      if (comms_is_single_byte_packet(&temp_packet, PACKET_ACK_DATA0)) {
+      if (comms_is_single_byte_packet(&temp_packet, PACKET_REXT_DATA0)) {
         comms_write(&last_transmitted_packet);
         state = CommsState_Length;
         break;
       }
 
-      if (comms_is_single_byte_packet(&temp_packet, PACKET_REXT_DATA0)) {
+      if (comms_is_single_byte_packet(&temp_packet, PACKET_ACK_DATA0)) {
         state = CommsState_Length;
         break;
       }
@@ -106,7 +103,7 @@ void comms_update(void) {
 }
 
 uint8_t comms_compute_crc(comms_packet_t *packet) {
-  return crc8_h2f_lut((uint8_t *)packet, sizeof(comms_packet_t));
+  return crc8_h2f_lut((uint8_t *)packet, PACKET_TOT_LEN - PACKET_CRC_LEN);
 }
 
 bool comms_packets_available(void) {
