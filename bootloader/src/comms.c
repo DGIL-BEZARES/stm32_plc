@@ -67,8 +67,8 @@ void comms_update(void) {
 
     case CommsState_CRC:
       temp_packet.crc = uart_read_byte();
-      volatile uint8_t computed_crc = crc8_h2f_lut((uint8_t *)(&temp_packet),
-                                          PACKET_DATA_LEN + PACKET_SIZE_LEN);
+      volatile uint8_t computed_crc = crc8_h2f_lut(
+          (uint8_t *)(&temp_packet), PACKET_DATA_LEN + PACKET_SIZE_LEN);
       if (temp_packet.crc != computed_crc) {
         comms_write(&retx_packet);
         state = CommsState_Length;

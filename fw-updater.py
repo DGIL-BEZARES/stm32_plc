@@ -2,6 +2,7 @@ import serial
 import time
 import struct
 from pathlib import Path
+from binascii import crc32
 
 # ─────────────────────────────────────────────
 # CONFIG
@@ -10,7 +11,6 @@ PORT = "/dev/ttyACM0"        # COMx on Windows
 BAUDRATE = 115200
 TIMEOUT = 0.1               # serial read timeout
 SYNC_TIMEOUT = 5.0          # seconds
-DEVICE_ID = 0x42
 
 SYNC_SEQ = bytes([0xC4, 0x55, 0x7E, 0x10])
 PACKET_DATA_LEN = 32
@@ -18,7 +18,18 @@ PACKET_DATA_LEN = 32
 PACKET_ACK_DATA0 = 0x15
 PACKET_RETX_DATA0 = 0x19
 
+
 BOOTLOADER_SIZE = 0x4000
+VECTOR_TABLE_SIZE = 0X150
+FWINFO_SIZE = (10 * 4)
+
+FWINFO_SENTINEL = 0xDEADBEEF
+FWINFO_VALIDATE_FROM = (VECTOR_TABLE_SIZE + FWINFO_SIZE)
+
+FWINFO_DEVICE_ID_OFFSET = VECTOR_TABLE_SIZE + (1 * 4)
+FWINFO_VERSION_OFFSET = VECTOR_TABLE_SIZE + (2 * 4)
+FWINFO_LENGTH_OFFSET = VECTOR_TABLE_SIZE + (3 * 4)
+FWINFO_CRC32_OFFSET = VECTOR_TABLE_SIZE + (4 * 4)
 
 
 BL_PACKET_SYNC_OBS_DATA0   = 0x20
@@ -97,19 +108,6 @@ ack = Packet(1, [PACKET_ACK_DATA0])
 # ─────────────────────────────────────────────
 # COMMS HELPERS
 # ─────────────────────────────────────────────
-def compute_crc(data):
-    crc = 0xFF
-    poly = 0x2F
-
-    for byte in data:
-        crc ^= byte  # XOR with data byte
-        for _ in range(8):  # process each bit
-            if crc & 0x80:  # MSB is 1
-                crc = ((crc << 1) & 0xFF) ^ poly  # shift left and XOR poly
-            else:
-                crc = (crc << 1) & 0xFF  # just shift left
-
-    return crc ^ 0xFF
 
 
 def read_packet(ser: serial.Serial):
@@ -121,8 +119,10 @@ def read_packet(ser: serial.Serial):
     
     crc = raw[-1]
 
-    if compute_crc(raw[:-1]) != crc:
-        print(f"CRC mismatch {Packet(raw[0], raw[1:-1], raw[-1])}")
+    pkt = Packet(raw[0],raw[1:-1])
+
+    if pkt.crc != crc:
+        print(f"CRC mismatch {hex(crc)} {hex(pkt.crc)}")
         print("Requesting retransmit...")
 
         write_packet(ser, retx)
@@ -130,7 +130,7 @@ def read_packet(ser: serial.Serial):
     else:
         write_packet(ser, ack)
     
-    return Packet(raw[0], raw[1:-1], raw[-1])
+    return pkt
 
 def write_packet(ser: serial.Serial, packet: Packet):
     global last_transmitted
@@ -159,15 +159,28 @@ def expect_single_byte(ser: serial.Serial, expected: int, desc=""):
             raise RuntimeError("Received NACK")
 
 
+def insert_into_list(src: list[int], data: int, idx: int) -> list[int]:
+    data_byte_list = list(struct.pack("<I",data))
+    return src[:idx] + data_byte_list + src[(idx + len(data_byte_list)):]
+
+def stm32_crc32(data: list[int]) -> int:
+    crc = 0xFFFFFFFF
+    poly = 0x04C11DB7
+    
+    for word in data:
+
+        crc ^= word
+        for _ in range(32):
+            if crc & 0x80000000:
+                crc = ((crc << 1) ^ poly) & 0xFFFFFFFF
+            else:
+                crc = (crc << 1) & 0xFFFFFFFF
+
+    return crc 
+
 # ─────────────────────────────────────────────
 # SYNC
 # ─────────────────────────────────────────────
-
-#def send_sync_sequence(ser):
-#    for b in (0xC4, 0x55, 0x7E, 0x10):
-#        ser.write(bytes([b]))
-#        ser.flush()          # force immediate TX
-#        time.sleep(0.002)    # 2 ms gap (safe)
 
 def perform_sync(ser: serial.Serial):
     print("→ Synchronizing with bootloader...")
@@ -188,9 +201,31 @@ def perform_sync(ser: serial.Serial):
 # MAIN UPLOAD LOGIC
 # ─────────────────────────────────────────────
 def upload_firmware(port, firmware_path):
-    firmware = list(Path(firmware_path).read_bytes()[BOOTLOADER_SIZE:])
+    binary = Path(firmware_path).read_bytes()
+    firmware = list(binary[BOOTLOADER_SIZE:])
     fw_len = len(firmware)
     print(f"Read file {firmware_path} [{fw_len} bytes]")
+
+    print("Injecting into firmware information section")
+
+    firmware = insert_into_list(firmware, fw_len, FWINFO_LENGTH_OFFSET)
+    firmware = insert_into_list(firmware, 0x00000001, FWINFO_VERSION_OFFSET)
+
+
+    # Convert the list of bytes to little endian 32bit bytes in order for the CRC32 algorithm to work
+    fw_le = []
+
+    for i in range(0x178,len(firmware),4):
+        fw_le.append(int.from_bytes(firmware[i:i+4],byteorder='little'))
+
+    crc32_val = stm32_crc32(fw_le)
+    print(f"Computed CRC32: {hex(crc32_val)}")
+
+    firmware = insert_into_list(firmware, crc32_val, FWINFO_CRC32_OFFSET)
+
+    Path("app/firmware_out.bin").write_bytes(bytes(firmware))
+    print(f"Output binary has {len(Path("app/firmware_out.bin").read_bytes())} bytes")
+
 
     time.sleep(1)
 
@@ -214,6 +249,8 @@ def upload_firmware(port, firmware_path):
         # ── DEVICE ID EXCHANGE ─────────────────
         print("← Device ID request")
         expect_single_byte(ser, BL_PACKET_DEV_ID_REQ_DATA0, "waiting for DEV_ID_REQ")
+
+        DEVICE_ID = firmware.copy().pop(FWINFO_DEVICE_ID_OFFSET)
 
         print("→ Sending Device ID")
         write_packet(ser, Packet(2,[BL_PACKET_DEV_ID_RES_DATA0, DEVICE_ID]))
@@ -255,7 +292,7 @@ def upload_firmware(port, firmware_path):
                     "waiting for READY (next chunk)"
                 )
 
-            print(f"{dataLength} bytes [{bytes_written}/{len(firmware)}] have been written")
+            print(f"{dataLength:>2} bytes [{bytes_written:>{len(str(len(firmware)))}}/{len(firmware)}] written")
 
         # ── DONE ───────────────────────────────
         print("← Waiting for success")
@@ -268,7 +305,7 @@ def upload_firmware(port, firmware_path):
 if __name__ == "__main__":
     import sys
     if len(sys.argv) != 2:
-        print("Usage: python uploader.py firmware.bin")
+        print("Usage: python fw-updater.py firmware.bin")
         sys.exit(1)
 
     upload_firmware(PORT, sys.argv[1])

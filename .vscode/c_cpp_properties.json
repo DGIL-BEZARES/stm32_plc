@@ -7,7 +7,7 @@
             ],
             "defines": [
                 "STM32F1",
-                "__ARM_ARCH_7EM__"
+                "__ARM_ARCH_7M__"
             ],
             "compilerPath": "/usr/bin/arm-none-eabi-gcc",
             "cStandard": "c99",

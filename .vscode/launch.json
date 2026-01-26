@@ -63,6 +63,15 @@
       "device": "STM32F103RB",
       "runToEntryPoint": "main",
       "interface": "swd"
+    },
+    {
+      "name": "Python Debugger: Python File",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${file}",
+      "args": [
+        "app/firmware.bin"
+      ]
     }
   ]
 }

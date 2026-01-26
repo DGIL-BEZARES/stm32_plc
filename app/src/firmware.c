@@ -29,7 +29,7 @@ int main(void) {
   vector_setup();
   system_setup();
   gpio_setup();
-  //uart_setup();
+  // uart_setup();
 
   gpio_set(LED_PORT, LED_PIN);
   timer_setup();
@@ -53,8 +53,8 @@ int main(void) {
       timer_pwm_set_duty_cycle(i++);
       start_time = system_get_ticks();
     }
-//
-    //if (uart_data_available()) {
+    //
+    // if (uart_data_available()) {
     //  uint8_t data = uart_read_byte();
     //  uart_write_byte(data + 1);
     //}

@@ -1,19 +1,16 @@
-#include <libopencm3/stm32/gpio.h>
-#include <libopencm3/stm32/memorymap.h>
+#include <libopencm3/cm3/scb.h>
 #include <libopencm3/cm3/vector.h>
+#include <libopencm3/stm32/crc.h>
+#include <libopencm3/stm32/flash.h>
+#include <libopencm3/stm32/gpio.h>
 #include <libopencm3/stm32/rcc.h>
 
 #include "bl-flash.h"
 #include "comms.h"
+#include "core/firmware-info.h"
 #include "core/simple-timer.h"
 #include "core/system.h"
 #include "core/uart.h"
-
-#define BOOTLOADER_SIZE (0x4000U) // 16KB
-#define APP_START_ADDR (FLASH_BASE + BOOTLOADER_SIZE)
-#define MAX_FW_LENGTH ((1024U * 128U) - BOOTLOADER_SIZE)
-
-#define DEVICE_ID (0X42)
 
 #define SYNC_SEQ0 (0XC4)
 #define SYNC_SEQ1 (0X55)
@@ -44,6 +41,13 @@ static comms_packet_t temp_packet;
 static volatile uint32_t addr[128] = {0};
 static uint8_t idx = 0;
 
+static void crc_setup(void) {
+  rcc_periph_clock_enable(RCC_CRC);
+  crc_reset();
+}
+
+static void crc_teardown(void) { rcc_periph_clock_disable(RCC_CRC); }
+
 static void gpio_setup(void) {
   rcc_periph_clock_enable(RCC_GPIOA);
 
@@ -59,9 +63,24 @@ static void gpio_teardown(void) {
   rcc_periph_clock_disable(RCC_GPIOA);
 }
 
-static void jump_to_app(void) {
-  vector_table_t* main_vector_table = (vector_table_t*)APP_START_ADDR;
+static void jump_to_main(void) {
+  vector_table_t *main_vector_table = (vector_table_t *)APP_START_ADDR;
   main_vector_table->reset();
+}
+
+static bool validate_firmware_image(void) {
+  firmware_info_t *fw_info = (firmware_info_t *)FWINFO_ADDR;
+
+  if ((fw_info->sentinel != FWINFO_SENTINEL) ||
+      (fw_info->device_id != DEVICE_ID)) {
+    return false;
+  }
+
+  uint32_t *start_addr = (uint32_t *)FWINFO_VALIDATE_FROM;
+  uint32_t size = FWINFO_VALIDATE_LENGHT(fw_info->length) / sizeof(uint32_t);
+  volatile uint32_t computed_crc = crc_calculate_block(start_addr, size);
+
+  return fw_info->crc32 == computed_crc;
 }
 
 static void bootloader_failure(void) {
@@ -115,6 +134,7 @@ int main(void) {
   system_setup();
   gpio_setup();
   uart_setup();
+  crc_setup();
 
   simple_timer_setup(&timer, DEFAULT_TIMEOUT, false);
 
@@ -132,7 +152,8 @@ int main(void) {
         is_match = is_match && (sync_seq[3] == SYNC_SEQ3);
 
         if (is_match) {
-          comms_create_single_byte_packet(&temp_packet, BL_PACKET_SYNC_OBS_DATA0);
+          comms_create_single_byte_packet(&temp_packet,
+                                          BL_PACKET_SYNC_OBS_DATA0);
           comms_write(&temp_packet);
           simple_timer_reset(&timer);
           state = BL_State_WaitForUpdateReq;
@@ -152,9 +173,11 @@ int main(void) {
       if (comms_packets_available()) {
         comms_read(&temp_packet);
 
-        if (comms_is_single_byte_packet(&temp_packet, BL_PACKET_FW_UP_REQ_DATA0)) {
+        if (comms_is_single_byte_packet(&temp_packet,
+                                        BL_PACKET_FW_UP_REQ_DATA0)) {
           simple_timer_reset(&timer);
-          comms_create_single_byte_packet(&temp_packet, BL_PACKET_FW_UP_RES_DATA0);
+          comms_create_single_byte_packet(&temp_packet,
+                                          BL_PACKET_FW_UP_RES_DATA0);
           comms_write(&temp_packet);
           state = BL_State_DeviceIdReq;
 
@@ -179,7 +202,8 @@ int main(void) {
       if (comms_packets_available()) {
         comms_read(&temp_packet);
 
-        if (is_device_id_packet(&temp_packet) && temp_packet.data[1] == DEVICE_ID) {
+        if (is_device_id_packet(&temp_packet) &&
+            temp_packet.data[1] == DEVICE_ID) {
           simple_timer_reset(&timer);
           state = BL_State_FWLengthReq;
         } else {
@@ -239,11 +263,13 @@ int main(void) {
         simple_timer_reset(&timer);
 
         if (bytes_written >= fw_length) {
-          comms_create_single_byte_packet(&temp_packet, BL_PACKET_FW_UP_SCS_DATA0);
+          comms_create_single_byte_packet(&temp_packet,
+                                          BL_PACKET_FW_UP_SCS_DATA0);
           comms_write(&temp_packet);
           state = BL_State_Done;
         } else {
-          comms_create_single_byte_packet(&temp_packet, BL_PACKET_RDY_DATA_DATA0);
+          comms_create_single_byte_packet(&temp_packet,
+                                          BL_PACKET_RDY_DATA_DATA0);
           comms_write(&temp_packet);
         }
 
@@ -263,7 +289,13 @@ int main(void) {
   gpio_teardown();
   system_teardown();
 
-  jump_to_app();
+  if (validate_firmware_image()) {
+    crc_teardown();
+    jump_to_main();
+  } else {
+    crc_teardown();
+    scb_reset_core();
+  }
 
   return 0;
 }
