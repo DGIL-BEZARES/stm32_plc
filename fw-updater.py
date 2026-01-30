@@ -262,7 +262,7 @@ def upload_firmware(port, firmware_path):
         print(f"→ Sending firmware length ({fw_len} bytes)")
         write_packet(ser,Packet(5, [BL_PACKET_FW_LEN_RES_DATA0] + list(struct.pack("<I", fw_len))) )
 
-        print("Waiting for flash erasure")
+        print("← Waiting for flash erasure")
         time.sleep(3)
 
 
@@ -292,8 +292,9 @@ def upload_firmware(port, firmware_path):
                     "waiting for READY (next chunk)"
                 )
 
-            print(f"{dataLength:>2} bytes [{bytes_written:>{len(str(len(firmware)))}}/{len(firmware)}] written")
+            print(f"[INFO] {dataLength:>2} bytes [{bytes_written:>{len(str(len(firmware)))}}/{len(firmware)}] written",end='\r')
 
+        print()
         # ── DONE ───────────────────────────────
         print("← Waiting for success")
         expect_single_byte(ser, BL_PACKET_FW_UP_SCS_DATA0, "waiting for SUCCESS")
