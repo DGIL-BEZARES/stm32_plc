@@ -18,7 +18,7 @@ BINARY = firmware
 
 LIBNAME			= opencm3_stm32f1
 DEFS				+= -DSTM32F1
-FP_FLAGS		?= -mfloat-abi=soft -mfpu=fpv4-sp-d16
+FP_FLAGS		?= -mfloat-abi=soft
 ARCH_FLAGS	= -mthumb -mcpu=cortex-m3 $(FP_FLAGS)
 
 ###############################################################################
@@ -57,13 +57,11 @@ CSTD		?= -std=c99
 ###############################################################################
 # Source files
 
-OBJS		+= $(SRC_DIR)/$(BINARY).o
-OBJS		+= $(SRC_DIR)/bootloader.o
-OBJS		+= $(SRC_DIR)/info.o
-OBJS		+= $(SRC_DIR)/timer.o
-OBJS		+= $(SHARED_SRC_DIR)/core/ring-buffer.o
-OBJS		+= $(SHARED_SRC_DIR)/core/system.o
-OBJS		+= $(SHARED_SRC_DIR)/core/uart.o
+SRCS += $(wildcard $(SRC_DIR)/*.c)
+SRCS += $(wildcard $(SHARED_SRC_DIR)/core/*.c)
+
+# OBJS += $(patsubst %.c,%.o,$(SRCS))
+OBJS += $(SRCS:.c=.o)
 
 ###############################################################################
 # C flags
