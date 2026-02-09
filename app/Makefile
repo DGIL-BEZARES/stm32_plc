@@ -31,9 +31,10 @@ LDFLAGS		+= -L$(OPENCM3_DIR)/lib
 ###############################################################################
 # Includes
 
-DEFS		+= -I$(OPENCM3_DIR)/include
-DEFS		+= -I$(INC_DIR)
-DEFS		+= -I$(SHARED_INC_DIR)
+DEFS += -I$(CURDIR)/$(INC_DIR)
+DEFS += -I$(CURDIR)/$(SHARED_INC_DIR)
+DEFS += -I$(CURDIR)/$(OPENCM3_DIR)/include
+
 
 ###############################################################################
 # Executables
